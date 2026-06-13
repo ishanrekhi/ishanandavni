@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title id="page-title">Us ♡</title>
+
+  <!-- Leaflet map library -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Your data & styles -->
+  <script src="dates.js?v=6"></script>
+  <link rel="stylesheet" href="style.css?v=2" />
+</head>
+<body>
+
+<!-- ── Cover page ───────────────────────────────────────────── -->
+<div id="cover">
+  <div id="cover-card">
+    <p id="cover-dear">Dear Avni,</p>
+    <p id="cover-message">To all the places we've been,<br>and all the places we'll go.</p>
+    <p id="cover-heart">♡</p>
+    <p id="cover-sig">Ishan Rekhi</p>
+    <button id="cover-btn">Continue ›</button>
+  </div>
+</div>
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<header id="header">
+  <h1 id="site-title"></h1>
+  <p id="site-subtitle"></p>
+</header>
+
+<!-- ── Map ─────────────────────────────────────────────────── -->
+<div id="map"></div>
+
+<!-- ── Date popup overlay ───────────────────────────────────── -->
+<div id="overlay" role="dialog" aria-modal="true">
+  <div id="popup">
+    <button id="close-btn" aria-label="Close">✕</button>
+
+    <div id="popup-inner">
+      <div id="photo-grid"></div>
+      <div id="popup-text">
+        <p id="popup-number"></p>
+        <h2 id="popup-title"></h2>
+        <p id="popup-meta"></p>
+        <p id="popup-story"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Lightbox (full-size photo) ───────────────────────────── -->
+<div id="lightbox">
+  <img id="lightbox-img" src="" alt="Full size photo" />
+</div>
+
+<script>
+// ── Cover page ──────────────────────────────────────────────
+document.getElementById('cover-btn').addEventListener('click', () => {
+  const cover = document.getElementById('cover');
+  cover.classList.add('fade-out');
+  cover.addEventListener('animationend', () => cover.remove(), { once: true });
+});
+
+// ── Apply site settings ─────────────────────────────────────
+document.getElementById('page-title').textContent   = SITE.title;
+document.getElementById('site-title').textContent   = SITE.title;
+document.getElementById('site-subtitle').textContent = SITE.subtitle;
+
+// ── Init map ────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true, scrollWheelZoom: true });
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 18,
+}).addTo(map);
+
+// ── Fit map to all date pins ────────────────────────────────
+const latlngs = DATES.map(d => [d.lat, d.lng]);
+map.fitBounds(latlngs, { padding: [60, 60], maxZoom: 13 });
+
+// ── Rotation values for polaroid tilt ──────────────────────
+const ROTS = ['-2deg','1.5deg','-1deg','2.5deg','-3deg','0.5deg','2deg','-1.5deg'];
+
+// ── Build custom pin icons ──────────────────────────────────
+function makePinIcon(label) {
+  const html = `
+    <div class="pin-wrap">
+      <div class="pin-head"></div>
+      <div class="pin-label">${label}</div>
+    </div>`;
+  return L.divIcon({ html, className: '', iconAnchor: [11, 11], popupAnchor: [0, -14] });
+}
+
+// ── Popup helpers ───────────────────────────────────────────
+const overlay   = document.getElementById('overlay');
+const popup     = document.getElementById('popup');
+const closeBtn  = document.getElementById('close-btn');
+const lightbox  = document.getElementById('lightbox');
+const lbImg     = document.getElementById('lightbox-img');
+
+function openDate(index) {
+  const d = DATES[index];
+
+  document.getElementById('popup-number').textContent =
+    `Memory #${index + 1} of ${DATES.length}`;
+  document.getElementById('popup-title').textContent  = d.title;
+  document.getElementById('popup-meta').textContent   =
+    `📍 ${d.location}  ·  🗓 ${d.date}`;
+  document.getElementById('popup-story').textContent  = d.story;
+
+  // Build photo grid
+  const grid = document.getElementById('photo-grid');
+  grid.innerHTML = '';
+
+  if (d.photos.length === 0) {
+    // placeholder card
+    const card = document.createElement('div');
+    card.className = 'polaroid';
+    card.style.setProperty('--rot', ROTS[0]);
+    card.innerHTML = `
+      <div class="polaroid-placeholder">📷 photos<br>coming soon</div>
+      <div class="polaroid-caption">${SITE.coupleNames}</div>`;
+    grid.appendChild(card);
+  } else {
+    d.photos.forEach((src, i) => {
+      const rot  = ROTS[i % ROTS.length];
+      const card = document.createElement('div');
+      card.className = 'polaroid';
+      card.style.setProperty('--rot', rot);
+      card.innerHTML = `
+        <img src="${src}" alt="Photo from ${d.title}" loading="lazy" />
+        <div class="polaroid-caption">${d.title}</div>`;
+      card.querySelector('img').addEventListener('click', () => openLightbox(src));
+      grid.appendChild(card);
+    });
+  }
+
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDate() {
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function openLightbox(src) {
+  lbImg.src = src;
+  lightbox.classList.add('open');
+}
+
+function closeLightbox() {
+  lightbox.classList.remove('open');
+  lbImg.src = '';
+}
+
+// ── Place pins on map ───────────────────────────────────────
+DATES.forEach((d, i) => {
+  const marker = L.marker([d.lat, d.lng], { icon: makePinIcon(d.title) }).addTo(map);
+  marker.on('click', () => openDate(i));
+});
+
+// ── Event listeners ─────────────────────────────────────────
+closeBtn.addEventListener('click', closeDate);
+overlay.addEventListener('click', e => { if (e.target === overlay) closeDate(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeDate(); closeLightbox(); }
+});
+lightbox.addEventListener('click', closeLightbox);
+</script>
+
+</body>
+</html>
